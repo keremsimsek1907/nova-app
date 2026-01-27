@@ -10,49 +10,50 @@ const PORT = process.env.PORT || 10000;
 app.use(cors());
 app.use(express.json());
 
-// =======================
-// MONGODB CONNECTION
-// =======================
-const MONGO_URI =
-  process.env.MONGO_URI ||
-  process.env.MONGODB_URI ||
-  process.env.MONGO_URL;
+// --- Mongo bağlantısı (uygulamayı KİLİTLEMEZ) ---
+const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI || "";
 
-if (!MONGO_URI) {
-  console.error("❌ MONGO_URI bulunamadı. Render ENV kontrol et!");
-  process.exit(1);
+async function connectMongo() {
+  if (!MONGO_URI) {
+    console.log("⚠️ MONGO_URI yok. MongoDB bağlanmadan devam ediyorum.");
+    return;
+  }
+  try {
+    await mongoose.connect(MONGO_URI, {
+      serverSelectionTimeoutMS: 8000, // 8sn sonra vazgeç
+    });
+    console.log("✅ MongoDB bağlandı");
+  } catch (err) {
+    console.error("❌ MongoDB bağlantı hatası:", err?.message || err);
+  }
 }
+connectMongo();
 
-mongoose
-  .connect(MONGO_URI)
-  .then(() => console.log("MongoDB bağlandı ✅"))
-  .catch((err) => {
-    console.error("MongoDB bağlantı hatası ❌:", err.message);
-    process.exit(1);
-  });
-
-// =======================
-// API ROUTES
-// =======================
+// --- API health ---
 app.get("/api", (req, res) => {
-  res.json({ status: "API OK" });
+  res.json({
+    status: "API OK",
+    mongoReady: mongoose.connection.readyState === 1,
+  });
 });
 
-app.use("/api/auth", require("./routes/auth"));
-app.use("/api/items", require("./routes/items"));
+const authRoute = require("./routes/auth");
+app.use("/api/auth", authRoute);
 
-// =======================
-// FRONTEND (PRODUCTION)
-// =======================
+const itemsRoute = require("./routes/items");
+app.use("/api/items", itemsRoute);
+
+// --- FRONTEND serve (varsa) ---
 const frontendDist = path.join(__dirname, "..", "frontend", "dist");
 app.use(express.static(frontendDist));
 
-// React Router fallback
 app.get("*", (req, res) => {
-  res.sendFile(path.join(frontendDist, "index.html"));
+  // dist yoksa bile API çalışsın diye hata vermeyelim
+  res.sendFile(path.join(frontendDist, "index.html"), (err) => {
+    if (err) res.status(404).send("Frontend build bulunamadı.");
+  });
 });
 
-// =======================
 app.listen(PORT, () => {
   console.log(`🚀 Server çalışıyor: ${PORT}`);
 });
