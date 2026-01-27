@@ -5,55 +5,43 @@ const express = require("express");
 const cors = require("cors");
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;
 
 app.use(cors());
 app.use(express.json());
 
-// =======================
-// MONGODB CONNECTION
-// =======================
-const MONGO_URI =
-  process.env.MONGODB_URI ||
-  process.env.MONGO_URI ||
-  process.env.MONGO_URL;
+// ===== MONGO URI KONTROLÜ =====
+const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI;
 
 if (!MONGO_URI) {
-  console.error("❌ Mongo URI bulunamadı! ENV eksik.");
-} else {
-  console.log("✅ Mongo URI ENV bulundu");
+  console.error("❌ MONGO_URI TANIMLI DEGIL");
+  process.exit(1);
 }
 
 mongoose
   .connect(MONGO_URI)
-  .then(() => console.log("MongoDB bağlandı ✅"))
-  .catch((err) => console.error("MongoDB hata ❌:", err));
+  .then(() => console.log("✅ MongoDB bağlandı"))
+  .catch((err) => {
+    console.error("❌ MongoDB bağlantı hatası:", err.message);
+    process.exit(1);
+  });
 
-// =======================
-// API ROUTES
-// =======================
+// ===== ROUTES =====
 app.get("/api", (req, res) => {
   res.json({ status: "API OK" });
 });
 
-const authRoute = require("./routes/auth");
-app.use("/api/auth", authRoute);
+app.use("/api/auth", require("./routes/auth"));
+app.use("/api/items", require("./routes/items"));
 
-const itemsRoute = require("./routes/items");
-app.use("/api/items", itemsRoute);
-
-// =======================
-// FRONTEND (PRODUCTION)
-// =======================
+// ===== FRONTEND SERVE =====
 const frontendDist = path.join(__dirname, "..", "frontend", "dist");
 app.use(express.static(frontendDist));
 
-// React Router için fallback
 app.get("*", (req, res) => {
   res.sendFile(path.join(frontendDist, "index.html"));
 });
 
-// =======================
 app.listen(PORT, () => {
-  console.log(`Server çalışıyor: http://localhost:${PORT}`);
+  console.log(`🚀 Server çalışıyor: http://localhost:${PORT}`);
 });
