@@ -11,11 +11,27 @@ const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_change_me";
 
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
 
+// JWT koruma middleware'i
+function authRequired(req, res, next) {
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+
+  if (!token) return res.status(401).json({ error: "Token yok" });
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded; // { sub, email, iat, exp }
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: "Token geçersiz" });
+  }
+}
+
 // POST /api/auth/register  { email, password }
 router.post("/register", async (req, res) => {
   try {
-    const email = normalizeEmail(req.body?.email);
-    const password = String(req.body?.password || "");
+    const email = normalizeEmail(req.body && req.body.email);
+    const password = String((req.body && req.body.password) || "");
 
     if (!email || !password) {
       return res.status(400).json({ error: "email ve password gerekli" });
@@ -34,9 +50,7 @@ router.post("/register", async (req, res) => {
 
     return res.status(201).json({ id: user._id.toString(), email: user.email });
   } catch (err) {
-    // Render loglarında gerçek hatayı görmemiz için:
     console.error("REGISTER ERROR 👉", err);
-
     return res.status(500).json({
       error: err?.message || "server hata",
       name: err?.name,
@@ -47,8 +61,8 @@ router.post("/register", async (req, res) => {
 // POST /api/auth/login { email, password }
 router.post("/login", async (req, res) => {
   try {
-    const email = normalizeEmail(req.body?.email);
-    const password = String(req.body?.password || "");
+    const email = normalizeEmail(req.body && req.body.email);
+    const password = String((req.body && req.body.password) || "");
 
     if (!email || !password) {
       return res.status(400).json({ error: "email ve password gerekli" });
@@ -69,11 +83,23 @@ router.post("/login", async (req, res) => {
     return res.json({ token });
   } catch (err) {
     console.error("LOGIN ERROR 👉", err);
-
     return res.status(500).json({
       error: err?.message || "server hata",
       name: err?.name,
     });
+  }
+});
+
+// GET /api/auth/me (JWT gerekli)
+router.get("/me", authRequired, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.sub).select("-passwordHash");
+    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+
+    return res.json({ id: user._id.toString(), email: user.email });
+  } catch (err) {
+    console.error("ME ERROR 👉", err);
+    return res.status(500).json({ error: "server hata" });
   }
 });
 
