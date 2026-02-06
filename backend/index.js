@@ -10,8 +10,10 @@ const PORT = process.env.PORT || 10000;
 app.use(cors());
 app.use(express.json());
 
-// Mongoose buffering kapat (bağlantı yokken bekletmesin)
+// Mongoose buffering kapat
 mongoose.set("bufferCommands", false);
+
+let mongoReady = false;
 
 const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI;
 if (!MONGO_URI) {
@@ -24,11 +26,13 @@ async function start() {
     await mongoose.connect(MONGO_URI, {
       serverSelectionTimeoutMS: 10000,
     });
+
+    mongoReady = true;
     console.log("✅ MongoDB bağlandı");
 
-    // API
+    // API health
     app.get("/api", (req, res) => {
-      res.json({ status: "API OK", mongoReady: true });
+      res.json({ status: "API OK", mongoReady });
     });
 
     app.use("/api/auth", require("./routes/auth"));
