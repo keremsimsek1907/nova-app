@@ -1,14 +1,25 @@
-
 import { useState } from "react";
 
-const API_BASE = "https://nova-backend-06xe.onrender.com";
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+/* ================================
+   API BASE
+================================ */
+const API_BASE =
+  import.meta.env.VITE_API_BASE ||
+  "https://nova-backend-06xe.onrender.com";
 
+/* ================================
+   API HELPER
+================================ */
 async function api(path, body) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+  const token = localStorage.getItem("token");
+
+  const res = await fetch(API_BASE + path, {
+    method: body ? "POST" : "GET",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
   const text = await res.text();
@@ -22,96 +33,119 @@ async function api(path, body) {
   return { ok: res.ok, data };
 }
 
+/* ================================
+   APP
+================================ */
 export default function App() {
   const [mode, setMode] = useState("login"); // login | register
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [authMsg, setAuthMsg] = useState("");
-  const [token, setToken] = useState("");
+  const [token, setToken] = useState(localStorage.getItem("token") || "");
 
+  /* ================================
+     LOGIN
+  ================================ */
   const doLogin = async () => {
     setBusy(true);
     setAuthMsg("");
+
     const { ok, data } = await api("/api/auth/login", {
       email,
       password,
     });
+
     setBusy(false);
 
-    if (!ok) return setAuthMsg(data?.error || "Login başarısız");
+    if (!ok) {
+      setAuthMsg(data?.error || "Login başarısız");
+      return;
+    }
+
     setToken(data.token);
+    localStorage.setItem("token", data.token);
     setAuthMsg("Giriş başarılı ✅");
   };
 
+  /* ================================
+     REGISTER
+  ================================ */
   const doRegister = async () => {
     setBusy(true);
     setAuthMsg("");
+
     const { ok, data } = await api("/api/auth/register", {
       email,
       password,
     });
+
     setBusy(false);
 
-    if (!ok) return setAuthMsg(data?.error || "Kayıt başarısız");
+    if (!ok) {
+      setAuthMsg(data?.error || "Register başarısız");
+      return;
+    }
 
-    setAuthMsg("Kayıt başarılı, giriş yapılıyor...");
-    await doLogin();
+    setAuthMsg("Kayıt başarılı, giriş yapabilirsin ✅");
+    setMode("login");
   };
 
+  /* ================================
+     AUTH / ME TEST
+  ================================ */
+  const getMe = async () => {
+    const { ok, data } = await api("/api/auth/me");
+    alert(ok ? JSON.stringify(data, null, 2) : "TOKEN GEÇERSİZ ❌");
+  };
+
+  /* ================================
+     UI
+  ================================ */
   return (
     <div style={{ padding: 40, fontFamily: "Arial" }}>
-      <h1>{mode === "login" ? "Giriş" : "Kayıt Ol"}</h1>
+      <h1>Giriş</h1>
 
       <div style={{ marginBottom: 10 }}>
-        <button onClick={() => setMode("login")} disabled={mode === "login"}>
+        <button onClick={() => setMode("login")}>Login</button>
+        <button onClick={() => setMode("register")}>Register</button>
+      </div>
+
+      <input
+        placeholder="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+      <br />
+      <input
+        type="password"
+        placeholder="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+      <br />
+
+      {mode === "login" ? (
+        <button disabled={busy} onClick={doLogin}>
           Login
         </button>
-        <button
-          onClick={() => setMode("register")}
-          disabled={mode === "register"}
-          style={{ marginLeft: 10 }}
-        >
+      ) : (
+        <button disabled={busy} onClick={doRegister}>
           Register
         </button>
-      </div>
+      )}
 
-      <div style={{ maxWidth: 300 }}>
-        <input
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={{ width: "100%", marginBottom: 8 }}
-        />
-        <input
-          placeholder="Password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ width: "100%", marginBottom: 8 }}
-        />
+      <p>{authMsg}</p>
 
-        <button
-          onClick={mode === "login" ? doLogin : doRegister}
-          disabled={busy}
-          style={{ width: "100%" }}
-        >
-          {busy ? "Bekle..." : mode === "login" ? "Login" : "Register"}
-        </button>
-
-        {authMsg && (
-          <p style={{ marginTop: 10, color: authMsg.includes("başarılı") ? "green" : "red" }}>
-            {authMsg}
-          </p>
-        )}
-
-        {token && (
-          <div style={{ marginTop: 20 }}>
-            <b>Token:</b>
-            <pre style={{ wordBreak: "break-all" }}>{token}</pre>
-          </div>
-        )}
-      </div>
+      {token && (
+        <>
+          <p><b>Token:</b></p>
+          <small style={{ wordBreak: "break-all" }}>{token}</small>
+          <br /><br />
+          <button onClick={getMe}>/api/auth/me test</button>
+        </>
+      )}
     </div>
   );
 }
+
