@@ -119,32 +119,31 @@ export default function App() {
     <div style={{ padding: 24, fontFamily: "Arial, sans-serif" }}>
       <h1>Giriş</h1>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        {!token && (
-          <>
-            <button
-              onClick={() => setMode("login")}
-              disabled={busy}
-              style={{ opacity: mode === "login" ? 1 : 0.7 }}
-            >
-              Login
-            </button>
-            <button
-              onClick={() => setMode("register")}
-              disabled={busy}
-              style={{ opacity: mode === "register" ? 1 : 0.7 }}
-            >
-              Register
-            </button>
-          </>
-        )}
+<div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+  {!token ? (
+    <>
+      <button
+        onClick={() => setMode("login")}
+        disabled={busy}
+        style={{ opacity: mode === "login" ? 1 : 0.7 }}
+      >
+        Login
+      </button>
+      <button
+        onClick={() => setMode("register")}
+        disabled={busy}
+        style={{ opacity: mode === "register" ? 1 : 0.7 }}
+      >
+        Register
+      </button>
+    </>
+  ) : (
+    <button onClick={doLogout} disabled={busy}>
+      Logout
+    </button>
+  )}
+</div>
 
-        {token && (
-          <button onClick={doLogout} disabled={busy}>
-            Logout
-          </button>
-        )}
-      </div>
 
       {!token && (
         <>
@@ -195,13 +194,7 @@ export default function App() {
       )}
 
       {/* DEV ortamında test butonu görünsün */}
-      {import.meta.env.DEV && token && (
-        <div style={{ marginTop: 12 }}>
-          <button onClick={doMe} disabled={busy}>
-            /api/auth/me test
-          </button>
-        </div>
-      )}
+
 
       {me && (
         <div style={{ marginTop: 16, padding: 12, border: "1px solid #444" }}>
