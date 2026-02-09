@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
-// küçük yardımcı
 async function api(path, body, token) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
@@ -21,7 +19,6 @@ async function api(path, body, token) {
   } catch {
     data = text;
   }
-
   return { ok: res.ok, data };
 }
 
@@ -30,20 +27,19 @@ export default function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // ✅ token kalıcı
   const [token, setToken] = useState(() => localStorage.getItem("token") || "");
   const [me, setMe] = useState(null);
 
   const [busy, setBusy] = useState(false);
-  const [authMsg, setAuthMsg] = useState("");
+  const [msg, setMsg] = useState("");
 
-  // token değişince localStorage güncelle
+  const loggedIn = useMemo(() => !!token, [token]);
+
   useEffect(() => {
     if (token) localStorage.setItem("token", token);
     else localStorage.removeItem("token");
   }, [token]);
 
-  // ✅ token varsa otomatik /api/auth/me çek
   useEffect(() => {
     const run = async () => {
       if (!token) {
@@ -55,140 +51,183 @@ export default function App() {
       setBusy(false);
 
       if (!ok) {
-        // token bozuk/expired ise temizle
         setToken("");
         setMe(null);
-        setAuthMsg(data?.error || "Oturum süresi dolmuş olabilir.");
+        setMsg(data?.error || "Oturum süresi dolmuş olabilir.");
         return;
       }
-
       setMe(data);
     };
-
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const doLogin = async () => {
     setBusy(true);
-    setAuthMsg("");
+    setMsg("");
     setMe(null);
 
     const { ok, data } = await api("/api/auth/login", { email, password });
     setBusy(false);
 
-    if (!ok) {
-      setAuthMsg(data?.error || "Login başarısız");
-      return;
-    }
-
+    if (!ok) return setMsg(data?.error || "Giriş başarısız");
     setToken(data.token || "");
-    setAuthMsg("Giriş başarılı ✅");
+    setPassword("");
+    setMsg("Giriş başarılı ✅");
   };
 
   const doRegister = async () => {
     setBusy(true);
-    setAuthMsg("");
+    setMsg("");
     setMe(null);
 
     const { ok, data } = await api("/api/auth/register", { email, password });
     setBusy(false);
 
-    if (!ok) {
-      setAuthMsg(data?.error || "Kayıt başarısız");
-      return;
-    }
-
+    if (!ok) return setMsg(data?.error || "Kayıt başarısız");
     setToken(data.token || "");
-    setAuthMsg("Kayıt başarılı ✅");
+    setPassword("");
+    setMsg("Kayıt başarılı ✅");
   };
 
   const doLogout = () => {
     setToken("");
     setMe(null);
-    setAuthMsg("Çıkış yapıldı.");
+    setMsg("Çıkış yapıldı.");
     setMode("login");
   };
 
-  const loggedIn = useMemo(() => !!token, [token]);
+  const Card = ({ children }) => (
+    <div
+      style={{
+        marginTop: 14,
+        padding: 14,
+        border: "1px solid #3a3a3a",
+        borderRadius: 10,
+        maxWidth: 420,
+        background: "rgba(255,255,255,0.02)",
+      }}
+    >
+      {children}
+    </div>
+  );
+
+  const Btn = (props) => (
+    <button
+      {...props}
+      style={{
+        padding: "8px 12px",
+        borderRadius: 10,
+        border: "1px solid #444",
+        background: "rgba(255,255,255,0.04)",
+        color: "inherit",
+        cursor: "pointer",
+        opacity: props.disabled ? 0.6 : 1,
+        ...props.style,
+      }}
+    />
+  );
+
+  const Input = (props) => (
+    <input
+      {...props}
+      style={{
+        padding: "10px 12px",
+        borderRadius: 10,
+        border: "1px solid #444",
+        background: "rgba(255,255,255,0.03)",
+        color: "inherit",
+        outline: "none",
+      }}
+    />
+  );
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui, -apple-system, Segoe UI, Roboto" }}>
-      <h1 style={{ marginTop: 0 }}>Giriş</h1>
+    <div
+      style={{
+        minHeight: "100vh",
+        padding: 24,
+        color: "#eee",
+        background: "#111",
+        fontFamily: "system-ui, -apple-system, Segoe UI, Roboto",
+      }}
+    >
+      <h1 style={{ margin: 0, fontSize: 48, letterSpacing: 0.5 }}>Giriş</h1>
 
-      {/* ✅ Login/Register/Logout doğru görünüm */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+      <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
         {!loggedIn ? (
           <>
-            <button
+            <Btn
               onClick={() => setMode("login")}
               disabled={busy}
-              style={{ opacity: mode === "login" ? 1 : 0.7 }}
+              style={{ borderColor: mode === "login" ? "#777" : "#444" }}
             >
               Login
-            </button>
-            <button
+            </Btn>
+            <Btn
               onClick={() => setMode("register")}
               disabled={busy}
-              style={{ opacity: mode === "register" ? 1 : 0.7 }}
+              style={{ borderColor: mode === "register" ? "#777" : "#444" }}
             >
               Register
-            </button>
+            </Btn>
           </>
         ) : (
-          <button onClick={doLogout} disabled={busy}>
+          <Btn onClick={doLogout} disabled={busy}>
             Logout
-          </button>
+          </Btn>
         )}
       </div>
 
-      {/* ✅ Form: sadece login değilken göster */}
       {!loggedIn && (
-        <div style={{ maxWidth: 320, display: "grid", gap: 8 }}>
-          <input
-            placeholder="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={busy}
-          />
-          <input
-            placeholder="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={busy}
-          />
+        <Card>
+          <div style={{ display: "grid", gap: 10 }}>
+            <Input
+              placeholder="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={busy}
+            />
+            <Input
+              placeholder="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={busy}
+            />
 
-          {mode === "login" ? (
-            <button onClick={doLogin} disabled={busy}>
-              Login
-            </button>
-          ) : (
-            <button onClick={doRegister} disabled={busy}>
-              Register
-            </button>
-          )}
-        </div>
+            {mode === "login" ? (
+              <Btn onClick={doLogin} disabled={busy}>
+                {busy ? "Bekle..." : "Login"}
+              </Btn>
+            ) : (
+              <Btn onClick={doRegister} disabled={busy}>
+                {busy ? "Bekle..." : "Register"}
+              </Btn>
+            )}
+          </div>
+        </Card>
       )}
 
-      <div style={{ marginTop: 12 }}>
-        <div>
+      <div style={{ marginTop: 14 }}>
+        <span style={{ opacity: 0.9 }}>
           <b>Oturum:</b> {loggedIn ? "açık ✅" : "kapalı ❌"}
-        </div>
-        {authMsg ? <div style={{ marginTop: 6 }}>{authMsg}</div> : null}
+        </span>
+        {msg ? <div style={{ marginTop: 8, opacity: 0.95 }}>{msg}</div> : null}
       </div>
 
-      {/* ✅ Me bilgisi */}
       {me && (
-        <div style={{ marginTop: 16, padding: 12, border: "1px solid #444", maxWidth: 420 }}>
-          <h3 style={{ marginTop: 0 }}>Me</h3>
-          <div>
-            <b>ID:</b> {me.id || me._id || "-"}
+        <Card>
+          <h3 style={{ margin: 0, marginBottom: 10 }}>Me</h3>
+          <div style={{ display: "grid", gap: 6, opacity: 0.95 }}>
+            <div>
+              <b>ID:</b> {me.id || me._id || "-"}
+            </div>
+            <div>
+              <b>Email:</b> {me.email || "-"}
+            </div>
           </div>
-          <div>
-            <b>Email:</b> {me.email || "-"}
-          </div>
-        </div>
+        </Card>
       )}
     </div>
   );
