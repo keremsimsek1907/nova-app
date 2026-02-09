@@ -1,18 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_API_BASE ||
-  "http://localhost:5000";
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
-async function api(path, body = null, token = "") {
+// küçük yardımcı
+async function api(path, body, token) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: body ? JSON.stringify(body) : "{}",
+    body: JSON.stringify(body ?? {}),
   });
 
   const text = await res.text();
@@ -31,14 +30,50 @@ export default function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  // ✅ token kalıcı
+  const [token, setToken] = useState(() => localStorage.getItem("token") || "");
+  const [me, setMe] = useState(null);
+
   const [busy, setBusy] = useState(false);
   const [authMsg, setAuthMsg] = useState("");
-  const [token, setToken] = useState("");
-  const [me, setMe] = useState(null);
+
+  // token değişince localStorage güncelle
+  useEffect(() => {
+    if (token) localStorage.setItem("token", token);
+    else localStorage.removeItem("token");
+  }, [token]);
+
+  // ✅ token varsa otomatik /api/auth/me çek
+  useEffect(() => {
+    const run = async () => {
+      if (!token) {
+        setMe(null);
+        return;
+      }
+      setBusy(true);
+      const { ok, data } = await api("/api/auth/me", {}, token);
+      setBusy(false);
+
+      if (!ok) {
+        // token bozuk/expired ise temizle
+        setToken("");
+        setMe(null);
+        setAuthMsg(data?.error || "Oturum süresi dolmuş olabilir.");
+        return;
+      }
+
+      setMe(data);
+    };
+
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   const doLogin = async () => {
     setBusy(true);
     setAuthMsg("");
+    setMe(null);
+
     const { ok, data } = await api("/api/auth/login", { email, password });
     setBusy(false);
 
@@ -47,13 +82,15 @@ export default function App() {
       return;
     }
 
-    setToken(data?.token || "");
+    setToken(data.token || "");
     setAuthMsg("Giriş başarılı ✅");
   };
 
   const doRegister = async () => {
     setBusy(true);
     setAuthMsg("");
+    setMe(null);
+
     const { ok, data } = await api("/api/auth/register", { email, password });
     setBusy(false);
 
@@ -62,142 +99,88 @@ export default function App() {
       return;
     }
 
-    // backend register sonrası token dönüyorsa al
-    if (data?.token) setToken(data.token);
+    setToken(data.token || "");
     setAuthMsg("Kayıt başarılı ✅");
   };
 
   const doLogout = () => {
     setToken("");
     setMe(null);
-    setAuthMsg("Çıkış yapıldı");
+    setAuthMsg("Çıkış yapıldı.");
+    setMode("login");
   };
 
-  const doMe = async () => {
-    if (!token) {
-      setAuthMsg("Token yok");
-      return;
-    }
-
-    setBusy(true);
-    setAuthMsg("");
-    const res = await fetch(`${API_BASE}/api/auth/me`, {
-      method: "GET",
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    });
-
-    const text = await res.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = text;
-    }
-
-    setBusy(false);
-
-    if (!res.ok) {
-      setAuthMsg(data?.error || "Me alınamadı");
-      setMe(null);
-      return;
-    }
-
-    setMe(data);
-    setAuthMsg("Me başarılı ✅");
-  };
-
-  // Token değişince otomatik Me çek
-  useEffect(() => {
-    if (token) doMe();
-    else setMe(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  const loggedIn = useMemo(() => !!token, [token]);
 
   return (
-    <div style={{ padding: 24, fontFamily: "Arial, sans-serif" }}>
-      <h1>Giriş</h1>
+    <div style={{ padding: 24, fontFamily: "system-ui, -apple-system, Segoe UI, Roboto" }}>
+      <h1 style={{ marginTop: 0 }}>Giriş</h1>
 
-<div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-  {!token ? (
-    <>
-      <button
-        onClick={() => setMode("login")}
-        disabled={busy}
-        style={{ opacity: mode === "login" ? 1 : 0.7 }}
-      >
-        Login
-      </button>
-      <button
-        onClick={() => setMode("register")}
-        disabled={busy}
-        style={{ opacity: mode === "register" ? 1 : 0.7 }}
-      >
-        Register
-      </button>
-    </>
-  ) : (
-    <button onClick={doLogout} disabled={busy}>
-      Logout
-    </button>
-  )}
-</div>
-
-
-      {!token && (
-        <>
-          <div style={{ maxWidth: 320, display: "grid", gap: 8 }}>
-            <input
-              placeholder="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+      {/* ✅ Login/Register/Logout doğru görünüm */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        {!loggedIn ? (
+          <>
+            <button
+              onClick={() => setMode("login")}
               disabled={busy}
-            />
-            <input
-              placeholder="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              style={{ opacity: mode === "login" ? 1 : 0.7 }}
+            >
+              Login
+            </button>
+            <button
+              onClick={() => setMode("register")}
               disabled={busy}
-            />
-
-            {mode === "login" ? (
-              <button onClick={doLogin} disabled={busy}>
-                {busy ? "Bekle..." : "Login"}
-              </button>
-            ) : (
-              <button onClick={doRegister} disabled={busy}>
-                {busy ? "Bekle..." : "Register"}
-              </button>
-            )}
-          </div>
-        </>
-      )}
-
-      <div style={{ marginTop: 12 }}>
-        {token ? (
-          <div>
-            <b>Oturum açık</b> ✅
-          </div>
+              style={{ opacity: mode === "register" ? 1 : 0.7 }}
+            >
+              Register
+            </button>
+          </>
         ) : (
-          <div>
-            <b>Oturum kapalı</b>
-          </div>
+          <button onClick={doLogout} disabled={busy}>
+            Logout
+          </button>
         )}
       </div>
 
-      {authMsg && (
-        <div style={{ marginTop: 12, padding: 10, border: "1px solid #444" }}>
-          {authMsg}
+      {/* ✅ Form: sadece login değilken göster */}
+      {!loggedIn && (
+        <div style={{ maxWidth: 320, display: "grid", gap: 8 }}>
+          <input
+            placeholder="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={busy}
+          />
+          <input
+            placeholder="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={busy}
+          />
+
+          {mode === "login" ? (
+            <button onClick={doLogin} disabled={busy}>
+              Login
+            </button>
+          ) : (
+            <button onClick={doRegister} disabled={busy}>
+              Register
+            </button>
+          )}
         </div>
       )}
 
-      {/* DEV ortamında test butonu görünsün */}
+      <div style={{ marginTop: 12 }}>
+        <div>
+          <b>Oturum:</b> {loggedIn ? "açık ✅" : "kapalı ❌"}
+        </div>
+        {authMsg ? <div style={{ marginTop: 6 }}>{authMsg}</div> : null}
+      </div>
 
-
+      {/* ✅ Me bilgisi */}
       {me && (
-        <div style={{ marginTop: 16, padding: 12, border: "1px solid #444" }}>
+        <div style={{ marginTop: 16, padding: 12, border: "1px solid #444", maxWidth: 420 }}>
           <h3 style={{ marginTop: 0 }}>Me</h3>
           <div>
             <b>ID:</b> {me.id || me._id || "-"}
