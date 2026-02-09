@@ -2,14 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
-async function api(path, body, token) {
+async function api(path, { method = "GET", body } = {}, token) {
+  const headers = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+
+  // JSON body varsa POST/PUT vb için content-type ekle
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+
   const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(body ?? {}),
+    method,
+    headers,
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
 
   const text = await res.text();
@@ -19,7 +23,8 @@ async function api(path, body, token) {
   } catch {
     data = text;
   }
-  return { ok: res.ok, data };
+
+  return { ok: res.ok, status: res.status, data };
 }
 
 export default function App() {
@@ -40,22 +45,30 @@ export default function App() {
     else localStorage.removeItem("token");
   }, [token]);
 
+  // Token varsa ME çek (GET!)
   useEffect(() => {
     const run = async () => {
       if (!token) {
         setMe(null);
         return;
       }
+
       setBusy(true);
-      const { ok, data } = await api("/api/auth/me", {}, token);
+      const { ok, data } = await api("/api/auth/me", { method: "GET" }, token);
       setBusy(false);
 
       if (!ok) {
-        setToken("");
-        setMe(null);
-        setMsg(data?.error || "Oturum süresi dolmuş olabilir.");
+        // burada tokenı silmek yerine mesaj gösterelim; ama 401 ise silebiliriz
+        if (data?.error) setMsg(data.error);
+        else setMsg("Me isteği başarısız (GET).");
+        // 401/403 gibi durumlarda token'ı temizle
+        if (String(data?.error || "").toLowerCase().includes("token")) {
+          setToken("");
+          setMe(null);
+        }
         return;
       }
+
       setMe(data);
     };
     run();
@@ -67,7 +80,12 @@ export default function App() {
     setMsg("");
     setMe(null);
 
-    const { ok, data } = await api("/api/auth/login", { email, password });
+    const { ok, data } = await api(
+      "/api/auth/login",
+      { method: "POST", body: { email, password } },
+      null
+    );
+
     setBusy(false);
 
     if (!ok) return setMsg(data?.error || "Giriş başarısız");
@@ -81,7 +99,12 @@ export default function App() {
     setMsg("");
     setMe(null);
 
-    const { ok, data } = await api("/api/auth/register", { email, password });
+    const { ok, data } = await api(
+      "/api/auth/register",
+      { method: "POST", body: { email, password } },
+      null
+    );
+
     setBusy(false);
 
     if (!ok) return setMsg(data?.error || "Kayıt başarısız");
