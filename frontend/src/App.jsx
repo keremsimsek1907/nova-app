@@ -3,11 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 async function api(path, { method = "GET", body } = {}, token) {
-  const headers = {
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-
-  // JSON body varsa POST/PUT vb için content-type ekle
+  const headers = { ...(token ? { Authorization: `Bearer ${token}` } : {}) };
   if (body !== undefined) headers["Content-Type"] = "application/json";
 
   const res = await fetch(`${API_BASE}${path}`, {
@@ -23,7 +19,6 @@ async function api(path, { method = "GET", body } = {}, token) {
   } catch {
     data = text;
   }
-
   return { ok: res.ok, status: res.status, data };
 }
 
@@ -45,24 +40,25 @@ export default function App() {
     else localStorage.removeItem("token");
   }, [token]);
 
-  // Token varsa ME çek (GET!)
+  // token varsa ME çek (GET)
   useEffect(() => {
     const run = async () => {
       if (!token) {
         setMe(null);
         return;
       }
-
       setBusy(true);
       const { ok, data } = await api("/api/auth/me", { method: "GET" }, token);
       setBusy(false);
 
       if (!ok) {
-        // burada tokenı silmek yerine mesaj gösterelim; ama 401 ise silebiliriz
-        if (data?.error) setMsg(data.error);
-        else setMsg("Me isteği başarısız (GET).");
-        // 401/403 gibi durumlarda token'ı temizle
-        if (String(data?.error || "").toLowerCase().includes("token")) {
+        setMsg(data?.error || "Me isteği başarısız");
+        // token invalid ise temizle
+        if (
+          String(data?.error || "")
+            .toLowerCase()
+            .includes("token")
+        ) {
           setToken("");
           setMe(null);
         }
@@ -138,6 +134,7 @@ export default function App() {
   const Btn = (props) => (
     <button
       {...props}
+      type={props.type || "button"} // <-- KRİTİK: submit olmasın
       style={{
         padding: "8px 12px",
         borderRadius: 10,
@@ -165,6 +162,13 @@ export default function App() {
     />
   );
 
+  const onSubmit = (e) => {
+    e.preventDefault(); // <-- KRİTİK: her enter/harfte submit olmasın
+    if (busy) return;
+    if (mode === "login") doLogin();
+    else doRegister();
+  };
+
   return (
     <div
       style={{
@@ -175,7 +179,7 @@ export default function App() {
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto",
       }}
     >
-      <h1 style={{ margin: 0, fontSize: 48, letterSpacing: 0.5 }}>Giriş</h1>
+      <h1 style={{ margin: 0, fontSize: 48 }}>Giriş</h1>
 
       <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
         {!loggedIn ? (
@@ -204,12 +208,13 @@ export default function App() {
 
       {!loggedIn && (
         <Card>
-          <div style={{ display: "grid", gap: 10 }}>
+          <form onSubmit={onSubmit} style={{ display: "grid", gap: 10 }}>
             <Input
               placeholder="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={busy}
+              autoFocus
             />
             <Input
               placeholder="password"
@@ -228,21 +233,19 @@ export default function App() {
                 {busy ? "Bekle..." : "Register"}
               </Btn>
             )}
-          </div>
+          </form>
         </Card>
       )}
 
       <div style={{ marginTop: 14 }}>
-        <span style={{ opacity: 0.9 }}>
-          <b>Oturum:</b> {loggedIn ? "açık ✅" : "kapalı ❌"}
-        </span>
-        {msg ? <div style={{ marginTop: 8, opacity: 0.95 }}>{msg}</div> : null}
+        <b>Oturum:</b> {loggedIn ? "açık ✅" : "kapalı ❌"}
+        {msg ? <div style={{ marginTop: 8 }}>{msg}</div> : null}
       </div>
 
       {me && (
         <Card>
           <h3 style={{ margin: 0, marginBottom: 10 }}>Me</h3>
-          <div style={{ display: "grid", gap: 6, opacity: 0.95 }}>
+          <div style={{ display: "grid", gap: 6 }}>
             <div>
               <b>ID:</b> {me.id || me._id || "-"}
             </div>
