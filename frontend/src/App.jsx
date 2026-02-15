@@ -214,7 +214,6 @@ export default function App() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={busy}
-              autoFocus
             />
             <Input
               placeholder="password"
